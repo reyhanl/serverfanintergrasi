@@ -1,13 +1,45 @@
+require('dotenv').config();
 const express = require("express");
 const bodyParser = require('body-parser');
 const cors = require("cors");
 const admin = require('firebase-admin');
 const dotenv = require('dotenv');
-// const serviceAccount = require("./firebaseauth.json");
+
+/**
+ * Module dependencies.
+ */
+
+const app = require('./app');
+const http = require('http');
+
+/**
+ * Get port from environment and store in Express.
+ */
+
+const port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+
+const server = http.createServer(app);
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+server.listen(port);
+server.on('error', onError);
+server.on('listening', onListening);
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
 
 const firebaseAdminPrivateKey = process.env.private_key.replace(/\\n/g, '\n');
-console.log(firebaseAdminPrivateKey);
 
+// Construct the serviceAccount object using environment variables
 const serviceAccount = {
   type: 'service_account',
   project_id: process.env.project_id,
@@ -20,60 +52,64 @@ const serviceAccount = {
   auth_provider_x509_cert_url: process.env.auth_provider_x509_cert_url,
   client_x509_cert_url: process.env.client_x509_cert_url,
 };
-const app = express();
-const port = process.env.PORT || 3000;
 
-// Initialize the Firebase Admin SDK
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-app.use(cors());
-app.use(bodyParser.json());
 
-app.get("/status", (req, res) => {
-  res.send("Check Status");
-});
+function normalizePort(val) {
+  const port = parseInt(val, 10);
 
-app.post('/VerificationLink', async (req, res) => {
-  const userData = req.body;
-  console.log(userData);
-  const actionCodeSettings = {
-    url: `<hosted_firebase_url_link>`, // Replace with your hosted Firebase URL
-    handleCodeInApp: true,
-    android: {
-      packageName: '<project_id>' // Replace with your project ID
-    }
-  };
-  try {
-    const link = await admin.auth().generateSignInWithEmailLink(userData.email, actionCodeSettings);
-    // Here, send the link via email using a service like Nodemailer or Mailgun
-    res.json({
-      success: true,
-      link: link
-    });
-  } catch (error) {
-    res.json({
-      success: false,
-      message: error.message
-    });
+  if (isNaN(port)) {
+    // named pipe
+    return val;
   }
-});
 
-app.get('/fetchUsers', async (req, res) => {
-    try {
-      const listUsersResult = await admin.auth().listUsers();
-      const users = listUsersResult.users.map(user => ({
-        uid: user.uid,
-        email: user.email,
-        emailVerified: user.emailVerified
-      }));
-      res.json(users);
-    } catch (error) {
-      res.status(500).send({ error: error.message });
-    }
-  });
+  if (port >= 0) {
+    // port number
+    return port;
+  }
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== 'listen') {
+    throw error;
+  }
+
+  const bind = typeof port === 'string'
+    ? 'Pipe ' + port
+    : 'Port ' + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case 'EACCES':
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+      break;
+    case 'EADDRINUSE':
+      console.error(bind + ' is already in use');
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening() {
+  const addr = server.address();
+  const bind = typeof addr === 'string'
+    ? 'pipe ' + addr
+    : 'port ' + addr.port;
+  console.log('App started. Listening on ' + bind);
+}
