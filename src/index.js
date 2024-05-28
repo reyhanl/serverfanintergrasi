@@ -4,7 +4,7 @@ const cors = require("cors");
 const admin = require('firebase-admin');
 const dotenv = require('dotenv');
 // const serviceAccount = require("./firebaseauth.json");
-dotenv.config({ path: 'firebase.env' });
+dotenv.config({ path: '../sample.env' });
 
 const firebaseAdminPrivateKey = process.env.private_key.replace(/\\n/g, '\n');
 console.log(firebaseAdminPrivateKey);
