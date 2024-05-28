@@ -106,6 +106,20 @@ function onError(error) {
  * Event listener for HTTP server "listening" event.
  */
 
+app.get('/fetchUsers', async (req, res) => {
+  try {
+    const listUsersResult = await admin.auth().listUsers();
+    const users = listUsersResult.users.map(user => ({
+      uid: user.uid,
+      email: user.email,
+      emailVerified: user.emailVerified
+    }));
+    res.json(users);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
 function onListening() {
   const addr = server.address();
   const bind = typeof addr === 'string'
