@@ -1,89 +1,80 @@
-require('dotenv').config();
+const express = require("express");
+const bodyParser = require('body-parser');
+const cors = require("cors");
+const admin = require('firebase-admin');
+const dotenv = require('dotenv');
+// const serviceAccount = require("./firebaseauth.json");
+dotenv.config({ path: 'firebase.env' });
 
-/**
- * Module dependencies.
- */
+const firebaseAdminPrivateKey = process.env.private_key.replace(/\\n/g, '\n');
+console.log(firebaseAdminPrivateKey);
 
-const app = require('./app');
-const http = require('http');
+const serviceAccount = {
+  type: 'service_account',
+  project_id: process.env.project_id,
+  private_key_id: process.env.private_key_id,
+  private_key: firebaseAdminPrivateKey,
+  client_email: process.env.client_email,
+  client_id: process.env.client_id,
+  auth_uri: 'https://accounts.google.com/o/oauth2/auth',
+  token_uri: 'https://oauth2.googleapis.com/token',
+  auth_provider_x509_cert_url: process.env.auth_provider_x509_cert_url,
+  client_x509_cert_url: process.env.client_x509_cert_url,
+};
+const app = express();
+const port = process.env.PORT || 3000;
 
-/**
- * Get port from environment and store in Express.
- */
+// Initialize the Firebase Admin SDK
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
-const port = normalizePort(process.env.PORT || '3000');
-app.set('port', port);
+app.use(cors());
+app.use(bodyParser.json());
 
-/**
- * Create HTTP server.
- */
+app.get("/status", (req, res) => {
+  res.send("Check Status");
+});
 
-const server = http.createServer(app);
-
-/**
- * Listen on provided port, on all network interfaces.
- */
-
-server.listen(port);
-server.on('error', onError);
-server.on('listening', onListening);
-
-/**
- * Normalize a port into a number, string, or false.
- */
-
-function normalizePort(val) {
-  const port = parseInt(val, 10);
-
-  if (isNaN(port)) {
-    // named pipe
-    return val;
+app.post('/VerificationLink', async (req, res) => {
+  const userData = req.body;
+  console.log(userData);
+  const actionCodeSettings = {
+    url: `<hosted_firebase_url_link>`, // Replace with your hosted Firebase URL
+    handleCodeInApp: true,
+    android: {
+      packageName: '<project_id>' // Replace with your project ID
+    }
+  };
+  try {
+    const link = await admin.auth().generateSignInWithEmailLink(userData.email, actionCodeSettings);
+    // Here, send the link via email using a service like Nodemailer or Mailgun
+    res.json({
+      success: true,
+      link: link
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      message: error.message
+    });
   }
+});
 
-  if (port >= 0) {
-    // port number
-    return port;
-  }
+app.get('/fetchUsers', async (req, res) => {
+    try {
+      const listUsersResult = await admin.auth().listUsers();
+      const users = listUsersResult.users.map(user => ({
+        uid: user.uid,
+        email: user.email,
+        emailVerified: user.emailVerified
+      }));
+      res.json(users);
+    } catch (error) {
+      res.status(500).send({ error: error.message });
+    }
+  });
 
-  return false;
-}
-
-/**
- * Event listener for HTTP server "error" event.
- */
-
-function onError(error) {
-  if (error.syscall !== 'listen') {
-    throw error;
-  }
-
-  const bind = typeof port === 'string'
-    ? 'Pipe ' + port
-    : 'Port ' + port;
-
-  // handle specific listen errors with friendly messages
-  switch (error.code) {
-    case 'EACCES':
-      console.error(bind + ' requires elevated privileges');
-      process.exit(1);
-      break;
-    case 'EADDRINUSE':
-      console.error(bind + ' is already in use');
-      process.exit(1);
-      break;
-    default:
-      throw error;
-  }
-}
-
-/**
- * Event listener for HTTP server "listening" event.
- */
-
-function onListening() {
-  const addr = server.address();
-  const bind = typeof addr === 'string'
-    ? 'pipe ' + addr
-    : 'port ' + addr.port;
-  console.log('App started. Listening on ' + bind);
-}
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
